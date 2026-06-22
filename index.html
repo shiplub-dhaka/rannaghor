@@ -122,7 +122,7 @@ textarea.inp{resize:vertical;min-height:50px;}
 <body>
 <script>
 const SB_URL='https://qdtahllshgdvqexcpazc.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkdGFobGxzaGdkdnFleGNwYXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMjQ2NzMsImV4cCI6MjA5NzYwMDY3M30.7AR4Enc2nYVUBTqi7KJ002fJ_gmxqamsd02ATUdPeug;
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkdGFobGxzaGdkdnFleGNwYXpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMjQ2NzMsImV4cCI6MjA5NzYwMDY3M30.7AR4Enc2nYVUBTqi7KJ002fJ_gmxqamsd02ATUdPeug';
 </script>
 
 <header>
@@ -349,7 +349,7 @@ function gradOf(area){
 function emojiOf(meal){return meal.emoji||(({'Chicken':'🍗','Beef':'🥩','Seafood':'🦐','Pasta':'🍝','Dessert':'🍰','Vegetarian':'🥗','Breakfast':'🥞','Lamb':'🍖','Pork':'🥓','Starter':'🥘'}[meal.strCategory])||'🍲');}
 
 /* ═══ STATE ═══ */
-const sbC=(typeof supabase!=='undefined'&&SB_URL!=='https://https://qdtahllshgdvqexcpazc.supabase.co.supabase.co')?supabase.createClient(SB_URL,SB_KEY):null;
+const sbC=(typeof supabase!=='undefined'&&SB_URL!=='https://qdtahllshgdvqexcpazc.supabase.co')?supabase.createClient(SB_URL,SB_KEY):null;
 const DEMO=!sbC;
 let user=null;
 let pantry=['onion','garlic','ginger','egg','rice','potato','tomato','chicken','milk','flour','oil','salt','butter','lemon'];
@@ -435,20 +435,29 @@ function showShim(){document.getElementById('resGrid').innerHTML=`<div class="gr
 
 /* Combine built-in + live recipes */
 async function renderDefault(){
-  setTitle('All recipes','');showShim();
-  // load live categories
-  const liveCats=['Chicken','Beef','Seafood','Vegetarian','Pasta','Dessert','Breakfast','Lamb'];
-  const liveResults=await Promise.all(liveCats.map(c=>getMeals(c)));
-  const liveMeals=[];const seen=new Set();
-  liveResults.flat().forEach(m=>{if(!seen.has(m.idMeal)){seen.add(m.idMeal);liveMeals.push(m);}});
-  // merge with built-in (built-in first)
-  BUILTIN.forEach(b=>{if(!seen.has(b.idMeal)){seen.add(b.idMeal);liveMeals.unshift(b);}});
-  // filter veg
-  let list=vegOnly?liveMeals.filter(m=>m.strCategory==='Vegetarian'||BUILTIN.find(b=>b.idMeal===m.idMeal)):liveMeals;
-  const total=list.length;
-  document.getElementById('recipeCounter').textContent=total+'+ recipes · videos · cloud sync';
-  setTitle('All recipes',total+' recipes');
-  renderCards(list);
+  setTitle('All recipes','');
+  // STEP 1 — show built-in recipes IMMEDIATELY, no waiting
+  const builtinList=vegOnly?BUILTIN.filter(m=>m.strCategory==='Vegetarian'):BUILTIN;
+  document.getElementById('recipeCounter').textContent=builtinList.length+'+ recipes · videos · cloud sync';
+  setTitle('All recipes',builtinList.length+' recipes');
+  renderCards(builtinList);
+
+  // STEP 2 — load live recipes in background, add them when ready
+  try{
+    const liveCats=['Chicken','Beef','Seafood','Vegetarian','Pasta','Dessert','Breakfast','Lamb'];
+    const liveResults=await Promise.all(liveCats.map(c=>getMeals(c)));
+    const liveMeals=[];const seen=new Set(BUILTIN.map(b=>b.idMeal));
+    liveResults.flat().forEach(m=>{if(!seen.has(m.idMeal)){seen.add(m.idMeal);liveMeals.push(m);}});
+    if(liveMeals.length>0){
+      const all=[...BUILTIN,...liveMeals];
+      const list=vegOnly?all.filter(m=>m.strCategory==='Vegetarian'):all;
+      document.getElementById('recipeCounter').textContent=list.length+'+ recipes · videos · cloud sync';
+      setTitle('All recipes',list.length+' recipes');
+      renderCards(list);
+    }
+  }catch(e){
+    // live API failed — built-in recipes already showing, no problem
+  }
 }
 
 async function loadArea(a){setTitle(a+' recipes','');showShim();
